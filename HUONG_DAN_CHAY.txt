@@ -1,0 +1,84 @@
+Tat ca file da nam san trong:  /home/radxa/Radxa_camera_age
+
+
+
+0) VAO MAY RADXA
+
+
+1) BUILD (chi can lam 1 lan, hoac sau khi sua code)
+    cd ~/Radxa_camera_age
+    cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+    cmake --build build --target age_gender -j4
+
+  Thay dong "Built target age_gender" la OK.
+
+
+
+2) CHAY (foreground - xem log, Ctrl+C de dung)
+
+    cd ~/Radxa_camera_age
+    sh run.sh
+
+  Thay dong sau la chay OK:
+    models loaded from ./models
+    MJPEG stream: http://<board-ip>:8091/
+
+
+3) MO XEM REAL-TIME (tren trinh duyet)
+
+- Ngay tren may Radxa:      http://localhost:8091
+- Tu may khac cung LAN:     http://<IP_CUA_BOARD>:8091
+
+  Man hinh se hien video tu camera HP60C, moi khuon mat co
+  khung xanh + nhan "Gioi tinh  (Khoang tuoi)", vi du: Male (25-32).
+  Goc tren trai hien so FPS va so mat dang thay.
+
+  >> DUNG: bam Ctrl + C trong cua so dang chay.
+
+
+
+4) CHAY NEN (dong terminal van chay tiep)
+
+    cd ~/Radxa_camera_age
+    setsid sh run.sh </dev/null >/tmp/age.log 2>&1 &
+
+  - Xem log:   tail -f /tmp/age.log     (Ctrl+C de thoat xem)
+  - Dung:      pkill -f age_gender ; pkill -f v4l2-ctl
+
+
+
+5) TUY CHON KHI CHAY (them sau run.sh)
+
+    sh run.sh --port 8080          # doi cong web (mac dinh 8091)
+    sh run.sh --conf 0.7           # nguong tin cay khuon mat (mac dinh 0.6)
+    sh run.sh --every 3            # tinh tuoi/gioi moi 3 khung (nhe CPU hon)
+    sh run.sh --size 320x564       # do phan giai nho hon (nhe bang thong USB)
+    sh run.sh --device /dev/video19# doi camera (mac dinh /dev/video19)
+
+
+6) NEU LOI CAMERA ("device busy" / khong len hinh)
+
+Co tien trinh cu dang giu camera. Don sach roi chay lai:
+
+    pkill -9 -f age_gender
+    pkill -9 -f v4l2-ctl
+    sleep 2
+    cd ~/Radxa_camera_age && sh run.sh
+
+Kiem tra camera co nhan khong:
+    v4l2-ctl --list-devices          (tim dong "ASJ ZNX_NVT" = HP60C)
+
+
+
+ GHI CHU KY THUAT
+
+- Camera HP60C la USB UVC o /dev/video19. Chi che do MJPG 640x642
+  chay duoc (giai ma ra anh 640x480); che do 1280x720 qua tai USB 2.0,
+  che do YUYV ra nhieu. Code da chon dung che do MJPG.
+- Nhan dien: OpenCV DNN. Phat hien mat = SSD; tuoi/gioi = model
+  Levi-Hassner (age_net / gender_net) trong thu muc  models/ .
+  Tuoi chi la KHOANG uoc luong (model cu), gioi tinh kha chinh xac.
+- Chay tren CPU. Muon nhanh/chinh xac hon co the doi sang model ONNX
+  moi hoac chay NPU (QNN) sau nay.
+- Kien truc: main.c (C)  ->  app.cpp (loi OpenCV C++)  qua API trong app.h
+

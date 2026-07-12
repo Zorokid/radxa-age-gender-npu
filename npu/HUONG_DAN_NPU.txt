@@ -1,0 +1,64 @@
+HUONG DAN CHAY BAN NPU (age + gender tren Hexagon NPU)
+=======================================================
+(File nay chi luu tren PC local; tren Radxa khong de comment/doc.)
+
+Ban NPU nam trong:  ~/Radxa_camera_age/npu
+Ban CPU cu van chay rieng o:  ~/Radxa_camera_age  (cong 8091)
+
+
+0) VAO MAY RADXA
+
+
+1) BUILD (chi lam 1 lan, hoac sau khi sua code)
+   cd ~/Radxa_camera_age/npu
+   cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+   cmake --build build --target age_gender_npu -j4
+
+   Thay dong "Built target age_gender_npu" la OK.
+
+
+2) CHAY (foreground, Ctrl+C de dung)
+   cd ~/Radxa_camera_age/npu
+   sh run_npu.sh
+
+   Thay:  NPU models loaded (SCRFD det_10g + genderage) ...
+          MJPEG stream: http://<board-ip>:8092/
+
+
+3) XEM REAL-TIME
+   - Tren Radxa:        http://localhost:8092
+   - Tu may khac LAN:   http://<IP_CUA_BOARD>:8092
+   Moi mat co khung xanh + 5 diem landmark + nhan "M 34" / "F 28"
+   (gioi tinh + tuoi that). Goc tren trai: FPS + so mat + "NPU".
+
+
+4) CHAY NEN / KIEM TRA NHANH
+   - Nen:      cd ~/Radxa_camera_age/npu && setsid sh run_npu.sh </dev/null >/tmp/npu.log 2>&1 &
+   - Selftest: sh ~/Radxa_camera_age/npu/selftest.sh   (chay ~34s roi tu tat, grab 1 frame /tmp/g5.jpg)
+   - Dung:     pkill -9 age_gender_npu ; pkill -9 v4l2-ctl
+
+   LUU Y: camera streaming lam nghen WiFi-qua-USB -> SSH hay rot. Luon boc
+   lenh chay tren board bang `timeout N` de app tu tat, tranh orphan giu camera.
+
+
+5) TUY CHON (them sau run_npu.sh)
+   sh run_npu.sh --port 8080      # doi cong
+   sh run_npu.sh --conf 0.6       # nguong tin cay mat (mac dinh 0.5)
+   sh run_npu.sh --every 2        # detect moi 2 khung (nhe hon)
+   sh run_npu.sh --rotate 0       # bo xoay 180 (camera dang bi nguoc nen mac dinh 180)
+
+
+GHI CHU KY THUAT (vi sao chay duoc)
+-----------------------------------
+- Suy luan tren NPU Hexagon qua qnn_py::QnnRuntime (boc QNN SampleApp da patch),
+  KHONG dung qnn-net-run (moi lan goi phai spawn tien trinh -> cham, khong real-time).
+- Model .bin (det_10g_qcs6490.bin, genderage_qcs6490.bin) tro qua symlink trong weights/
+  toi du an FaceID_AirGesture (.../facial-analysis/weights/...).
+- skel DSP (libQnnHtpV68Skel.so) chi tim thay theo THU MUC HIEN HANH -> run_npu.sh cd vao npu/
+  (co san skel+stub o day). Vi vay cd rat quan trong.
+- Ca 2 model dung CHUNG 1 duong dan backend .so (neu khac se loi "skel 1009").
+- Input model = pixel THO 0-255 (NCHW, RGB), khong chuan hoa.
+  Output uint8 -> doi ve float bang: real = scale * (q + offset).
+- Da patch SDK QnnSampleApp.{hpp,cpp} de lo scale/offset (backup o board /tmp/*.bak).
+  Neu cai lai QAIRT SDK thi phai patch lai (them scale/offset vao RuntimeTensorInfo).
+- Build/chay CHI tren board (link OpenCV + QNN ARM64).
