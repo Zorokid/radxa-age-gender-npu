@@ -422,9 +422,10 @@ extern "C" int agn_run(const agn_config* cfg) {
     auto t0 = std::chrono::steady_clock::now();
     double fps = 0;
 
+    bool cam_eof = false;
     while (!g_stop.load()) {
         size_t got = fread(chunk, 1, sizeof(chunk), pipe);
-        if (got == 0) { if (feof(pipe)) break; else continue; }
+        if (got == 0) { if (feof(pipe)) { cam_eof = true; break; } else continue; }
         buf.insert(buf.end(), chunk, chunk + got);
 
         // Frame on SOI boundaries: a complete frame is [SOI_i, SOI_{i+1}).
@@ -484,6 +485,19 @@ extern "C" int agn_run(const agn_config* cfg) {
     if (acceptor.joinable()) acceptor.join();
     pclose(pipe);
     try { det.close(); ga.close(); } catch (...) {}
+
+    // EOF with no frames = v4l2-ctl couldn't stream (camera busy / wrong node /
+    // unplugged). Don't pretend success — the 2>/dev/null above hides the v4l2
+    // error, so say plainly what to check.
+    if (cam_eof && frameNo == 0) {
+        fprintf(stderr,
+            "\nERROR: camera produced no frames from %s.\n"
+            "  Likely another process holds this single-opener USB camera, or the\n"
+            "  /dev node shifted. Check:  pgrep -af age_gender_npu ; pgrep -af v4l2-ctl\n"
+            "  and:  v4l2-ctl -d %s --stream-mmap --stream-count=1 --stream-to=/dev/null\n",
+            cfg->device, cfg->device);
+        return 5;
+    }
     printf("\nstopped after %ld frames\n", frameNo);
     return 0;
 }
